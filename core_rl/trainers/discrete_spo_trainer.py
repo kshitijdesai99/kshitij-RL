@@ -9,8 +9,8 @@ from gymnasium import spaces
 import torch
 
 from core_rl.agents.discrete_spo import DiscreteSPOAgent, DiscreteSPOConfig
-from core_rl.buffers.spo_rollout_buffer import SPORolloutBuffer
-from core_rl.runners.spo_runner import SPORunner, SPORunnerConfig
+from core_rl.buffers.discrete_spo_rollout_buffer import SPORolloutBuffer
+from core_rl.runners.discrete_spo_runner import SPORunner, SPORunnerConfig
 from core_rl.trainers.common import get_env_tag, run_inference_episode
 
 

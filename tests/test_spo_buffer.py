@@ -1,7 +1,7 @@
 # Beginner summary: This file tests SPO rollout buffer math and output shapes.
 import numpy as np
 
-from core_rl.buffers.spo_rollout_buffer import SPORolloutBatch, SPORolloutBuffer
+from core_rl.buffers.discrete_spo_rollout_buffer import SPORolloutBatch, SPORolloutBuffer
 
 
 def test_spo_rollout_buffer_gae_returns_simple_case():

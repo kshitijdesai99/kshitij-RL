@@ -6,7 +6,7 @@ from typing import Any
 
 import torch
 
-from core_rl.buffers.spo_rollout_buffer import SPORolloutBuffer
+from core_rl.buffers.discrete_spo_rollout_buffer import SPORolloutBuffer
 from core_rl.utils.logger import get_logger
 from core_rl.utils.metrics import evaluate_policy
 

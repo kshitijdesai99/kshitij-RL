@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 from core_rl.agents.discrete_spo import DiscreteSPOAgent, DiscreteSPOConfig
-from core_rl.buffers.spo_rollout_buffer import SPORolloutBatch
+from core_rl.buffers.discrete_spo_rollout_buffer import SPORolloutBatch
 
 
 def test_spo_select_action_returns_valid_action():

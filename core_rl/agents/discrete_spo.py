@@ -11,7 +11,7 @@ import torch.optim as optim
 from torch.distributions import Categorical, Dirichlet
 
 from core_rl.agents.base_agent import BaseAgent
-from core_rl.buffers.spo_rollout_buffer import SPORolloutBatch
+from core_rl.buffers.discrete_spo_rollout_buffer import SPORolloutBatch
 from core_rl.networks.mlp import MLP
 
 

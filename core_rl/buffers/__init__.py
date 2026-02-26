@@ -5,9 +5,9 @@ from core_rl.buffers.continuous_spo_rollout_buffer import (
     ContinuousSPORolloutBuffer,
     ContinuousSPORolloutMiniBatch,
 )
+from core_rl.buffers.discrete_spo_rollout_buffer import SPORolloutBatch, SPORolloutBuffer, SPORolloutMiniBatch
 from core_rl.buffers.replay_buffer import ReplayBuffer, ReplayBatch
 from core_rl.buffers.rollout_buffer import RolloutBatch, RolloutBuffer, RolloutMiniBatch
-from core_rl.buffers.spo_rollout_buffer import SPORolloutBatch, SPORolloutBuffer, SPORolloutMiniBatch
 
 __all__ = [
     "BaseBuffer",

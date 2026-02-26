@@ -2,7 +2,7 @@
 from core_rl.trainers.continuous_spo_trainer import train_spo_continuous
 from core_rl.trainers.dqn_trainer import train_dqn
 from core_rl.trainers.ppo_trainer import train_ppo
-from core_rl.trainers.spo_trainer import train_spo
+from core_rl.trainers.discrete_spo_trainer import train_spo
 
 __all__ = [
     "train_dqn",

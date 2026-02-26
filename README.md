@@ -32,5 +32,5 @@ A modular reinforcement learning library scaffold with working DQN, PPO, Discret
 
 - DQN: `core_rl/agents/vanilla_dqn.py` + `core_rl/runners/off_policy.py`.
 - PPO: `core_rl/agents/ppo.py` + `core_rl/runners/on_policy.py`.
-- Discrete SPO: `core_rl/agents/discrete_spo.py` + `core_rl/runners/spo_runner.py`.
+- Discrete SPO: `core_rl/agents/discrete_spo.py` + `core_rl/runners/discrete_spo_runner.py`.
 - Continuous SPO: `core_rl/agents/continuous_spo.py` + `core_rl/runners/continuous_spo_runner.py`.
