@@ -1,6 +1,6 @@
 # kshitij-rl
 
-A modular reinforcement learning library scaffold with working DQN, PPO, and Discrete SPO implementations.
+A modular reinforcement learning library scaffold with working DQN, PPO, Discrete SPO, and Continuous SPO implementations.
 
 ## Structure
 
@@ -23,7 +23,9 @@ A modular reinforcement learning library scaffold with working DQN, PPO, and Dis
    - `uv run python main.py --algo ppo --env-id Pendulum-v1`
 5. Run Discrete SPO example:
    - `uv run python main.py --algo spo --env-id CartPole-v1`
-6. Run tests:
+6. Run Continuous SPO example:
+   - `uv run python main.py --algo spo_continuous --env-id Pendulum-v1`
+7. Run tests:
    - `uv run pytest`
 
 ## Implemented Algorithms
@@ -31,3 +33,4 @@ A modular reinforcement learning library scaffold with working DQN, PPO, and Dis
 - DQN: `core_rl/agents/vanilla_dqn.py` + `core_rl/runners/off_policy.py`.
 - PPO: `core_rl/agents/ppo.py` + `core_rl/runners/on_policy.py`.
 - Discrete SPO: `core_rl/agents/discrete_spo.py` + `core_rl/runners/spo_runner.py`.
+- Continuous SPO: `core_rl/agents/continuous_spo.py` + `core_rl/runners/continuous_spo_runner.py`.
