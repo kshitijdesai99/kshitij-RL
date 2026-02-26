@@ -1,3 +1,4 @@
+# Beginner summary: This file defines a simple reusable MLP neural network used by RL agents.
 from __future__ import annotations
 
 import torch

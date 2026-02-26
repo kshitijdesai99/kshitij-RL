@@ -1,3 +1,4 @@
+# Beginner summary: This file checks that replay buffer sampling returns arrays with the expected shapes.
 import numpy as np
 
 from core_rl.buffers.replay_buffer import ReplayBuffer

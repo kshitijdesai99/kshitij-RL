@@ -1,3 +1,4 @@
+# Beginner summary: This file is the main entry point that trains a DQN agent on CartPole, saves model checkpoints, and plots training progress.
 from __future__ import annotations
 
 import logging

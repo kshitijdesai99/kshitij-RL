@@ -1,3 +1,4 @@
+# Beginner summary: This file defines the base interface every RL agent should follow (choose actions and update from data).
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

@@ -1,3 +1,4 @@
+# Beginner summary: This file provides a reusable logger setup so training scripts print clean, consistent logs.
 from __future__ import annotations
 
 import logging

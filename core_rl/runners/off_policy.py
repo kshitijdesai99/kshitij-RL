@@ -1,3 +1,4 @@
+# Beginner summary: This file runs the off-policy training loop by collecting transitions, training the agent, and evaluating progress.
 from __future__ import annotations
 
 from dataclasses import dataclass

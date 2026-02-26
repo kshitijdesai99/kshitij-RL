@@ -1,3 +1,4 @@
+# Beginner summary: This file exposes the most important core_rl classes so they can be imported easily from one place.
 """Core RL package."""
 
 from core_rl.agents.vanilla_dqn import VanillaDQNAgent, VanillaDQNConfig

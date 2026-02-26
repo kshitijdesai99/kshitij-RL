@@ -1,3 +1,4 @@
+# Beginner summary: This file implements a beginner-friendly vanilla DQN agent with epsilon-greedy action selection and Q-learning updates.
 # Vanilla DQN Agent
 # DQN can be used for discrete action spaces examples: CartPole which has 2 actions (left and right) , LunarLander which has 4 actions (left, right, up, down)
 

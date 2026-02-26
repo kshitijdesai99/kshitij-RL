@@ -1,3 +1,4 @@
+# Beginner summary: This file stores past transitions and samples random mini-batches for DQN training.
 from __future__ import annotations
 
 from collections import deque  # Efficient append/pop from both ends.
