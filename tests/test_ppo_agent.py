@@ -8,18 +8,22 @@ from core_rl.buffers.rollout_buffer import RolloutBatch
 
 
 def test_ppo_select_action_returns_valid_discrete_action():
+    # Build a discrete PPO agent (2 actions like CartPole).
     agent = PPOAgent(
         state_dim=4,
         action_dim=2,
         config=PPOConfig(),
         device=torch.device("cpu"),
     )
+    # Non-deterministic mode samples from policy distribution.
     action = agent.select_action(np.zeros(4, dtype=np.float32), deterministic=False)
+    # Discrete action should be a python int in [0, action_dim-1].
     assert isinstance(action, int)
     assert action in (0, 1)
 
 
 def test_ppo_update_returns_finite_metrics():
+    # Keep tiny settings for a fast unit test update pass.
     agent = PPOAgent(
         state_dim=4,
         action_dim=2,
@@ -27,6 +31,7 @@ def test_ppo_update_returns_finite_metrics():
         device=torch.device("cpu"),
     )
 
+    # Create synthetic rollout-like data with matching shapes.
     num_samples = 32
     states = np.random.randn(num_samples, 4).astype(np.float32)
     actions = np.random.randint(0, 2, size=num_samples).astype(np.int64)
@@ -48,6 +53,7 @@ def test_ppo_update_returns_finite_metrics():
         advantages=advantages,
     )
 
+    # The main smoke check: update should run and report finite metrics.
     metrics = agent.update(batch)
     for key in ("policy_loss", "value_loss", "entropy", "loss", "approx_kl", "clip_fraction"):
         assert key in metrics
@@ -55,6 +61,7 @@ def test_ppo_update_returns_finite_metrics():
 
 
 def test_ppo_select_action_returns_valid_continuous_action():
+    # 1D bounded continuous action space, like Pendulum.
     action_space = spaces.Box(low=-2.0, high=2.0, shape=(1,), dtype=np.float32)
     agent = PPOAgent(
         state_dim=3,
@@ -63,6 +70,7 @@ def test_ppo_select_action_returns_valid_continuous_action():
         device=torch.device("cpu"),
     )
     action = agent.select_action(np.zeros(3, dtype=np.float32), deterministic=False)
+    # Continuous actions should be numpy vectors inside env bounds.
     assert isinstance(action, np.ndarray)
     assert action.shape == (1,)
     assert action.dtype == np.float32
@@ -71,6 +79,7 @@ def test_ppo_select_action_returns_valid_continuous_action():
 
 
 def test_ppo_continuous_update_returns_finite_metrics():
+    # Same smoke test idea as discrete, but for Gaussian policy mode.
     action_space = spaces.Box(low=-2.0, high=2.0, shape=(1,), dtype=np.float32)
     agent = PPOAgent(
         state_dim=3,

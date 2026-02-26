@@ -27,6 +27,8 @@ from core_rl.utils.logger import get_logger
 
 def get_env_tag(env: gym.Env) -> str:
     """Return a filesystem-safe tag for the current environment id."""
+    # env.spec.id might be values like "CartPole-v1" or "Pendulum-v1".
+    # We convert to lowercase + replace separators for clean filenames.
     env_id = getattr(getattr(env, "spec", None), "id", "env")
     return str(env_id).lower().replace("-", "_").replace("/", "_")
 
@@ -52,6 +54,10 @@ def parse_args() -> argparse.Namespace:
 
 def get_device() -> torch.device:
     """Pick the best available torch device."""
+    # Priority order:
+    # 1) CUDA GPU (NVIDIA)
+    # 2) MPS GPU (Apple Silicon)
+    # 3) CPU fallback
     return torch.device(
         "cuda"
         if torch.cuda.is_available()
@@ -82,8 +88,10 @@ def train_dqn(
     checkpoints_dir: Path,
 ) -> dict[str, object]:
     """Train Vanilla DQN and return metrics + model metadata."""
+    # DQN only works for discrete action spaces by design.
     if not isinstance(env.action_space, spaces.Discrete):
         raise ValueError("DQN only supports discrete action spaces")
+    # This starter implementation expects flat vector observations.
     if len(env.observation_space.shape) != 1:
         raise ValueError("DQN example currently supports 1D vector observations only")
 
@@ -107,6 +115,7 @@ def train_dqn(
     best_model_path = str(checkpoints_dir / f"dqn_{env_tag}_best.pth")
     final_model_path = str(checkpoints_dir / f"dqn_{env_tag}_final.pth")
 
+    # Off-policy training uses a replay buffer.
     buffer = ReplayBuffer(capacity=10_000)
     runner = OffPolicyRunner(
         env=env,
@@ -125,7 +134,9 @@ def train_dqn(
     logger.info("Starting DQN training...")
     metrics = runner.train()
 
+    # Save final online-network weights from end of training.
     torch.save(agent.q_network.state_dict(), final_model_path)
+    # Reload best checkpoint (selected by periodic evaluation reward).
     best_state_dict = torch.load(best_model_path, map_location=device, weights_only=True)
     agent.q_network.load_state_dict(best_state_dict)
     agent.q_network.eval()
@@ -146,6 +157,7 @@ def train_ppo(
     checkpoints_dir: Path,
 ) -> dict[str, object]:
     """Train PPO and return metrics + model metadata."""
+    # PPO implementation here also expects flat vector observations.
     if len(env.observation_space.shape) != 1:
         raise ValueError("PPO example currently supports 1D vector observations only")
     state_dim = env.observation_space.shape[0]
@@ -170,6 +182,7 @@ def train_ppo(
     best_model_path = str(checkpoints_dir / f"ppo_{env_tag}_best.pth")
     final_model_path = str(checkpoints_dir / f"ppo_{env_tag}_final.pth")
 
+    # On-policy training uses rollout storage (fresh data each update cycle).
     buffer = RolloutBuffer()
     runner = OnPolicyRunner(
         env=env,
@@ -188,7 +201,9 @@ def train_ppo(
     logger.info("Starting PPO training...")
     metrics = runner.train()
 
+    # Save full PPO checkpoint (actor + critic + optional log_std).
     torch.save(agent.get_checkpoint(), final_model_path)
+    # Load best evaluation checkpoint before final deterministic inference.
     best_state_dict = torch.load(best_model_path, map_location=device, weights_only=False)
     agent.load_checkpoint(best_state_dict)
     agent.actor.eval()
@@ -218,8 +233,10 @@ def main() -> None:
     device = get_device()
 
     if args.algo == "dqn":
+        # DQN path: discrete actions + replay buffer + off-policy loop.
         result = train_dqn(env=env, device=device, logger=logger, checkpoints_dir=checkpoints_dir)
     else:
+        # PPO path: supports both discrete and continuous environments.
         result = train_ppo(env=env, device=device, logger=logger, checkpoints_dir=checkpoints_dir)
 
     metrics = result["metrics"]

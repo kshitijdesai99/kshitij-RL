@@ -19,25 +19,25 @@ class RolloutBatch:
     then discards it and collects a fresh rollout.
     """
 
-    states: np.ndarray
-    actions: np.ndarray
-    rewards: np.ndarray
-    dones: np.ndarray
-    log_probs: np.ndarray
-    values: np.ndarray
-    returns: np.ndarray
-    advantages: np.ndarray
+    states: np.ndarray  # Shape: (T, state_dim)
+    actions: np.ndarray  # Shape: (T,) for discrete, (T, action_dim) for continuous
+    rewards: np.ndarray  # Shape: (T,)
+    dones: np.ndarray  # Shape: (T,), 1.0 at terminal step else 0.0
+    log_probs: np.ndarray  # Shape: (T,), policy log-prob of sampled actions
+    values: np.ndarray  # Shape: (T,), critic V(s_t) predictions
+    returns: np.ndarray  # Shape: (T,), value targets = advantage + value
+    advantages: np.ndarray  # Shape: (T,), GAE estimates used by policy loss
 
 
 @dataclass(slots=True)
 class RolloutMiniBatch:
     """Mini-batch slice sampled from a full rollout."""
 
-    states: np.ndarray
-    actions: np.ndarray
-    log_probs: np.ndarray
-    returns: np.ndarray
-    advantages: np.ndarray
+    states: np.ndarray  # Subset of rollout states
+    actions: np.ndarray  # Subset of rollout actions
+    log_probs: np.ndarray  # Subset of behavior-policy log-probs
+    returns: np.ndarray  # Subset of value targets
+    advantages: np.ndarray  # Subset of GAE advantages
 
 
 class RolloutBuffer(BaseBuffer):
@@ -54,6 +54,8 @@ class RolloutBuffer(BaseBuffer):
 
     def clear(self) -> None:
         """Reset all stored rollout data."""
+        # Python lists are easy for step-by-step append during env interaction.
+        # We convert to numpy arrays once rollout collection is complete.
         self._states: list[np.ndarray] = []
         self._actions: list[Any] = []
         self._rewards: list[float] = []
@@ -73,6 +75,8 @@ class RolloutBuffer(BaseBuffer):
         value: float,
     ) -> None:
         """Store one environment step used by PPO."""
+        # Normalize action representation so both discrete and continuous
+        # actions are stored consistently and converted cleanly later.
         action_array = np.asarray(action)
         if action_array.ndim == 0:
             stored_action: Any = int(action_array.item())
@@ -108,16 +112,22 @@ class RolloutBuffer(BaseBuffer):
 
         advantages = np.zeros_like(rewards, dtype=np.float32)
         gae = 0.0
+        # Walk backward through time:
+        # each advantage depends on the "future" next-step estimate.
         for t in reversed(range(len(rewards))):
             if t == len(rewards) - 1:
+                # For the final stored step we bootstrap using caller-provided V(s_T).
                 next_value = float(last_value)
             else:
                 next_value = float(values[t + 1])
             next_non_terminal = 1.0 - dones[t]
+            # TD residual (delta) is one-step advantage estimate.
             delta = rewards[t] + gamma * next_value * next_non_terminal - values[t]
+            # GAE recursively accumulates discounted deltas.
             gae = delta + gamma * gae_lambda * next_non_terminal * gae
             advantages[t] = gae
 
+        # PPO typically trains the critic on returns = advantages + old values.
         returns = advantages + values
         self._advantages = advantages.astype(np.float32)
         self._returns = returns.astype(np.float32)
@@ -127,6 +137,7 @@ class RolloutBuffer(BaseBuffer):
         if self._returns is None or self._advantages is None:
             raise ValueError("call compute_returns_and_advantages() before get_batch()")
 
+        # Detect whether this rollout was discrete or continuous.
         first_action = self._actions[0]
         if isinstance(first_action, int):
             actions = np.asarray(self._actions, dtype=np.int64)
@@ -159,6 +170,7 @@ class RolloutBuffer(BaseBuffer):
 
         indices = list(range(num_samples))
         if shuffle:
+            # Shuffle each epoch to decorrelate gradient updates.
             random.shuffle(indices)
 
         minibatches: list[RolloutMiniBatch] = []

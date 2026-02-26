@@ -21,10 +21,10 @@ class OnPolicyRunnerConfig:
     2) run policy/value updates on that rollout
     """
 
-    total_timesteps: int = 50_000
-    rollout_steps: int = 1_024
-    eval_freq: int = 10
-    eval_episodes: int = 5
+    total_timesteps: int = 50_000  # Overall environment steps budget.
+    rollout_steps: int = 1_024  # Steps collected before each PPO update phase.
+    eval_freq: int = 10  # Evaluate every N PPO updates (not episodes).
+    eval_episodes: int = 5  # Episodes averaged during deterministic evaluation.
 
 
 class OnPolicyRunner:
@@ -64,17 +64,20 @@ class OnPolicyRunner:
         state, _ = self.env.reset()
         episode_reward = 0.0
         episode_count = 0
-        timesteps = 0
-        update_count = 0
+        timesteps = 0  # Counts all env steps across training.
+        update_count = 0  # Counts how many rollout->update cycles we ran.
 
         while timesteps < self.config.total_timesteps:
+            # 1) COLLECT A FRESH ON-POLICY ROLLOUT
             self.buffer.clear()
 
             for _ in range(self.config.rollout_steps):
+                # act() returns action + log_prob + value needed for PPO losses.
                 action, log_prob, value = self.agent.act(state)
                 next_state, reward, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
 
+                # Store exactly the data PPO needs for clipped-ratio updates + GAE.
                 self.buffer.add(
                     state=state,
                     action=action,
@@ -89,6 +92,7 @@ class OnPolicyRunner:
                 state = next_state
 
                 if done:
+                    # Track completed episode rewards for training curves.
                     train_rewards.append(float(episode_reward))
                     episode_reward = 0.0
                     episode_count += 1
@@ -97,6 +101,8 @@ class OnPolicyRunner:
                 if timesteps >= self.config.total_timesteps:
                     break
 
+            # 2) COMPUTE ADVANTAGES/RETURNS FOR THE COLLECTED ROLLOUT
+            # Bootstrap with critic value of the "next state" after rollout end.
             last_value = self.agent.estimate_value(state)
             self.buffer.compute_returns_and_advantages(
                 last_value=last_value,
@@ -104,10 +110,12 @@ class OnPolicyRunner:
                 gae_lambda=self.agent.config.gae_lambda,
             )
 
+            # 3) RUN PPO UPDATE(S) ON THE ROLLOUT
             batch = self.buffer.get_batch()
             update_metrics = self.agent.update(batch)
             update_count += 1
 
+            # 4) PERIODIC EVALUATION + BEST CHECKPOINTING
             if update_count % self.config.eval_freq == 0:
                 avg_eval_reward = evaluate_policy(self.env, self.agent, self.config.eval_episodes)
                 eval_rewards.append(avg_eval_reward)

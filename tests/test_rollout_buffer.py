@@ -6,6 +6,8 @@ from core_rl.buffers.rollout_buffer import RolloutBatch, RolloutBuffer
 
 def test_rollout_buffer_gae_returns_simple_case():
     buffer = RolloutBuffer()
+    # Two-step toy trajectory:
+    # step0 reward=1, step1 reward=1 and terminal=True.
     buffer.add(state=np.array([0.0], dtype=np.float32), action=0, reward=1.0, done=False, log_prob=-0.1, value=0.0)
     buffer.add(state=np.array([1.0], dtype=np.float32), action=1, reward=1.0, done=True, log_prob=-0.2, value=0.0)
 
@@ -20,6 +22,7 @@ def test_rollout_buffer_gae_returns_simple_case():
 
 def test_rollout_buffer_batch_shapes_and_minibatches():
     buffer = RolloutBuffer()
+    # Fill with synthetic discrete-action transitions.
     for _ in range(10):
         buffer.add(
             state=np.zeros(4, dtype=np.float32),
@@ -32,6 +35,7 @@ def test_rollout_buffer_batch_shapes_and_minibatches():
     buffer.compute_returns_and_advantages(last_value=0.0, gamma=0.99, gae_lambda=0.95)
     batch: RolloutBatch = buffer.get_batch()
 
+    # Validate all exported tensors/arrays have expected sizes.
     assert batch.states.shape == (10, 4)
     assert batch.actions.shape == (10,)
     assert batch.rewards.shape == (10,)
@@ -41,6 +45,7 @@ def test_rollout_buffer_batch_shapes_and_minibatches():
     assert batch.advantages.shape == (10,)
 
     minibatches = buffer.iter_minibatches(batch, minibatch_size=4, shuffle=False)
+    # 10 samples with minibatch size 4 -> 4, 4, 2
     assert len(minibatches) == 3
     assert minibatches[0].states.shape[0] == 4
     assert minibatches[1].states.shape[0] == 4
@@ -49,6 +54,7 @@ def test_rollout_buffer_batch_shapes_and_minibatches():
 
 def test_rollout_buffer_stores_continuous_actions():
     buffer = RolloutBuffer()
+    # Fill with vector actions so action array should become 2D float32.
     for _ in range(6):
         buffer.add(
             state=np.zeros(3, dtype=np.float32),

@@ -20,19 +20,19 @@ from core_rl.networks.mlp import MLP
 class PPOConfig:
     """Hyperparameters controlling PPO optimization and regularization."""
 
-    lr: float = 3e-4
-    gamma: float = 0.99
-    gae_lambda: float = 0.95
-    clip_ratio: float = 0.2
-    update_epochs: int = 4
-    minibatch_size: int = 64
-    value_coef: float = 0.5
-    entropy_coef: float = 0.01
-    max_grad_norm: float = 0.5
-    normalize_advantages: bool = True
-    init_log_std: float = -0.5
-    min_log_std: float = -20.0
-    max_log_std: float = 2.0
+    lr: float = 3e-4  # Optimizer step size.
+    gamma: float = 0.99  # Reward discount factor.
+    gae_lambda: float = 0.95  # Bias/variance knob for GAE advantage estimates.
+    clip_ratio: float = 0.2  # PPO clip epsilon used in policy ratio clipping.
+    update_epochs: int = 4  # How many passes we make over each rollout batch.
+    minibatch_size: int = 64  # Mini-batch size inside each PPO update epoch.
+    value_coef: float = 0.5  # Weight for critic (value) loss term.
+    entropy_coef: float = 0.01  # Weight for entropy bonus (encourages exploration).
+    max_grad_norm: float = 0.5  # Gradient clipping threshold for stability.
+    normalize_advantages: bool = True  # Standard PPO trick for more stable optimization.
+    init_log_std: float = -0.5  # Initial log std for continuous Gaussian policy.
+    min_log_std: float = -20.0  # Lower clamp to avoid near-zero std instability.
+    max_log_std: float = 2.0  # Upper clamp to avoid extremely noisy actions.
 
 
 class PPOAgent(BaseAgent):
@@ -52,6 +52,9 @@ class PPOAgent(BaseAgent):
     ):
         self.config = config
         self.device = device
+        # Continuous policies use extra state:
+        # - learnable log_std controls exploration noise
+        # - action_low/high keeps actions valid for bounded Box spaces
         self.log_std: nn.Parameter | None = None
         self.action_low: torch.Tensor | None = None
         self.action_high: torch.Tensor | None = None
@@ -61,11 +64,13 @@ class PPOAgent(BaseAgent):
         # - Automatic discrete/continuous handling: pass action_space
         if action_space is not None:
             if isinstance(action_space, spaces.Discrete):
+                # Discrete control (e.g., CartPole): actor outputs action logits.
                 self.is_continuous = False
                 self.action_dim = int(action_space.n)
             elif isinstance(action_space, spaces.Box):
                 if len(action_space.shape) != 1:
                     raise ValueError("continuous action space must be 1D")
+                # Continuous control (e.g., Pendulum): actor outputs action means.
                 self.is_continuous = True
                 self.action_dim = int(action_space.shape[0])
                 self.action_low = torch.as_tensor(action_space.low, dtype=torch.float32, device=self.device)
@@ -73,6 +78,8 @@ class PPOAgent(BaseAgent):
             else:
                 raise TypeError("unsupported action_space type for PPO")
         elif action_dim is not None:
+            # Backward-compatible mode: if caller only provides action_dim,
+            # we assume a discrete action space like earlier versions.
             self.is_continuous = False
             self.action_dim = int(action_dim)
         else:
@@ -82,8 +89,10 @@ class PPOAgent(BaseAgent):
         # - logits for discrete actions
         # - means for continuous actions
         self.actor = MLP(state_dim, self.action_dim).to(self.device)
+        # Critic always predicts a single scalar V(s).
         self.critic = MLP(state_dim, 1).to(self.device)
         if self.is_continuous:
+            # One log_std per action dimension, shared across states.
             self.log_std = nn.Parameter(
                 torch.full((self.action_dim,), self.config.init_log_std, dtype=torch.float32, device=self.device)
             )
@@ -104,7 +113,9 @@ class PPOAgent(BaseAgent):
         if self.is_continuous:
             if self.log_std is None:
                 raise RuntimeError("continuous PPO must define log_std")
+            # Clamp log_std to avoid numerical issues (too large/small variance).
             clipped_log_std = torch.clamp(self.log_std, self.config.min_log_std, self.config.max_log_std)
+            # expand_as gives batch-shaped std tensor matching actor_output shape.
             std = torch.exp(clipped_log_std).expand_as(actor_output)
             return Normal(actor_output, std)
         return Categorical(logits=actor_output)
@@ -127,6 +138,7 @@ class PPOAgent(BaseAgent):
             if self.is_continuous:
                 dist = self._get_distribution(state_tensor)
                 if deterministic:
+                    # Deterministic continuous action = mean of Gaussian.
                     action = self.actor(state_tensor)
                 else:
                     action = dist.sample()
@@ -135,6 +147,7 @@ class PPOAgent(BaseAgent):
             else:
                 logits = self.actor(state_tensor)
                 if deterministic:
+                    # Deterministic discrete action = argmax probability/logit.
                     action = logits.argmax(dim=1)
                 else:
                     dist = self._get_distribution(state_tensor)
@@ -154,6 +167,8 @@ class PPOAgent(BaseAgent):
             action = dist.sample()
             if self.is_continuous:
                 action = self._clip_continuous_action(action)
+                # Multi-dimensional Gaussian log_prob returns one value per dim.
+                # PPO needs one scalar log_prob per sample, so sum over dims.
                 log_prob = dist.log_prob(action).sum(dim=-1)
                 action_out = action.squeeze(0).cpu().numpy().astype(np.float32)
             else:
@@ -170,6 +185,7 @@ class PPOAgent(BaseAgent):
 
     def update(self, batch: RolloutBatch) -> dict[str, float]:
         """Run PPO optimization over rollout data for several epochs."""
+        # Convert rollout arrays to torch tensors on the target device.
         states = torch.as_tensor(batch.states, dtype=torch.float32, device=self.device)
         if self.is_continuous:
             actions = torch.as_tensor(batch.actions, dtype=torch.float32, device=self.device)
@@ -180,6 +196,7 @@ class PPOAgent(BaseAgent):
         advantages = torch.as_tensor(batch.advantages, dtype=torch.float32, device=self.device)
 
         if self.config.normalize_advantages and advantages.numel() > 1:
+            # Advantage normalization is a common trick to stabilize gradients.
             advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
 
         num_samples = states.shape[0]
@@ -194,6 +211,7 @@ class PPOAgent(BaseAgent):
         clip_fractions: list[float] = []
 
         for _ in range(self.config.update_epochs):
+            # PPO typically shuffles rollout data each epoch for SGD updates.
             permutation = torch.randperm(num_samples, device=self.device)
             for start in range(0, num_samples, self.config.minibatch_size):
                 idx = permutation[start : start + self.config.minibatch_size]
@@ -206,6 +224,7 @@ class PPOAgent(BaseAgent):
 
                 dist = self._get_distribution(mb_states)
                 if self.is_continuous:
+                    # For vector actions, combine per-dimension log_probs/entropies.
                     new_log_probs = dist.log_prob(mb_actions).sum(dim=-1)
                     entropy = dist.entropy().sum(dim=-1).mean()
                 else:
@@ -225,6 +244,7 @@ class PPOAgent(BaseAgent):
                 surrogate_2 = clipped_ratio * mb_advantages
                 policy_loss = -torch.min(surrogate_1, surrogate_2).mean()
                 value_loss = self.value_loss_fn(values, mb_returns)
+                # Full PPO objective = policy + value + entropy regularization.
                 total_loss = policy_loss + self.config.value_coef * value_loss - self.config.entropy_coef * entropy
 
                 self.optimizer.zero_grad()
@@ -236,6 +256,7 @@ class PPOAgent(BaseAgent):
                 self.optimizer.step()
 
                 with torch.no_grad():
+                    # Approx KL and clip fraction are health metrics for PPO updates.
                     approx_kl = (mb_old_log_probs - new_log_probs).mean()
                     clip_fraction = ((ratio - 1.0).abs() > self.config.clip_ratio).float().mean()
 
@@ -263,6 +284,7 @@ class PPOAgent(BaseAgent):
             "is_continuous": self.is_continuous,
         }
         if self.log_std is not None:
+            # Keep log_std so continuous policy behavior is fully restorable.
             checkpoint["log_std"] = self.log_std.detach().cpu()
         return checkpoint
 
