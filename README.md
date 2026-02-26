@@ -1,6 +1,6 @@
 # kshitij-rl
 
-A modular reinforcement learning library scaffold with a working DQN implementation.
+A modular reinforcement learning library scaffold with working DQN and PPO implementations.
 
 ## Structure
 
@@ -16,13 +16,13 @@ A modular reinforcement learning library scaffold with a working DQN implementat
 1. Install dependencies:
    - `uv sync`
 2. Run DQN example:
-   - `uv run python main.py`
-3. Run tests:
+   - `uv run python main.py --algo dqn`
+3. Run PPO example:
+   - `uv run python main.py --algo ppo`
+4. Run tests:
    - `uv run pytest`
 
-## Extension Plan
+## Implemented Algorithms
 
-- Add `PPOAgent` in `core_rl/agents/ppo.py`.
-- Add rollout storage in `core_rl/buffers/rollout_buffer.py`.
-- Add on-policy loop in `core_rl/runners/on_policy.py`.
-- Keep runner code algorithm-agnostic via `BaseAgent` and buffer interfaces.
+- DQN: `core_rl/agents/vanilla_dqn.py` + `core_rl/runners/off_policy.py`.
+- PPO: `core_rl/agents/ppo.py` + `core_rl/runners/on_policy.py`.
