@@ -45,3 +45,20 @@ def test_rollout_buffer_batch_shapes_and_minibatches():
     assert minibatches[0].states.shape[0] == 4
     assert minibatches[1].states.shape[0] == 4
     assert minibatches[2].states.shape[0] == 2
+
+
+def test_rollout_buffer_stores_continuous_actions():
+    buffer = RolloutBuffer()
+    for _ in range(6):
+        buffer.add(
+            state=np.zeros(3, dtype=np.float32),
+            action=np.array([0.25], dtype=np.float32),
+            reward=1.0,
+            done=False,
+            log_prob=-0.1,
+            value=0.3,
+        )
+    buffer.compute_returns_and_advantages(last_value=0.0, gamma=0.99, gae_lambda=0.95)
+    batch = buffer.get_batch()
+    assert batch.actions.shape == (6, 1)
+    assert batch.actions.dtype == np.float32

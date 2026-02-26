@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 import gymnasium as gym
+from gymnasium import spaces
 import matplotlib.pyplot as plt
 import torch
 
@@ -24,15 +25,27 @@ from core_rl import (
 from core_rl.utils.logger import get_logger
 
 
+def get_env_tag(env: gym.Env) -> str:
+    """Return a filesystem-safe tag for the current environment id."""
+    env_id = getattr(getattr(env, "spec", None), "id", "env")
+    return str(env_id).lower().replace("-", "_").replace("/", "_")
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description="Train RL agents on CartPole-v1.")
+    parser = argparse.ArgumentParser(description="Train RL agents with DQN or PPO.")
     parser.add_argument(
         "--algo",
         type=str,
         default="dqn",
         choices=["dqn", "ppo"],
         help="Algorithm to train: dqn or ppo.",
+    )
+    parser.add_argument(
+        "--env-id",
+        type=str,
+        default="CartPole-v1",
+        help="Gymnasium environment id. Example: CartPole-v1 or Pendulum-v1",
     )
     return parser.parse_args()
 
@@ -69,8 +82,14 @@ def train_dqn(
     checkpoints_dir: Path,
 ) -> dict[str, object]:
     """Train Vanilla DQN and return metrics + model metadata."""
+    if not isinstance(env.action_space, spaces.Discrete):
+        raise ValueError("DQN only supports discrete action spaces")
+    if len(env.observation_space.shape) != 1:
+        raise ValueError("DQN example currently supports 1D vector observations only")
+
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
+    env_tag = get_env_tag(env)
 
     agent = VanillaDQNAgent(
         state_dim=state_dim,
@@ -85,8 +104,8 @@ def train_dqn(
         ),
         device=device,
     )
-    best_model_path = str(checkpoints_dir / "dqn_cartpole_best.pth")
-    final_model_path = str(checkpoints_dir / "dqn_cartpole_final.pth")
+    best_model_path = str(checkpoints_dir / f"dqn_{env_tag}_best.pth")
+    final_model_path = str(checkpoints_dir / f"dqn_{env_tag}_final.pth")
 
     buffer = ReplayBuffer(capacity=10_000)
     runner = OffPolicyRunner(
@@ -127,12 +146,13 @@ def train_ppo(
     checkpoints_dir: Path,
 ) -> dict[str, object]:
     """Train PPO and return metrics + model metadata."""
+    if len(env.observation_space.shape) != 1:
+        raise ValueError("PPO example currently supports 1D vector observations only")
     state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
+    env_tag = get_env_tag(env)
 
     agent = PPOAgent(
         state_dim=state_dim,
-        action_dim=action_dim,
         config=PPOConfig(
             lr=3e-4,
             gamma=0.99,
@@ -145,9 +165,10 @@ def train_ppo(
             max_grad_norm=0.5,
         ),
         device=device,
+        action_space=env.action_space,
     )
-    best_model_path = str(checkpoints_dir / "ppo_cartpole_best.pth")
-    final_model_path = str(checkpoints_dir / "ppo_cartpole_final.pth")
+    best_model_path = str(checkpoints_dir / f"ppo_{env_tag}_best.pth")
+    final_model_path = str(checkpoints_dir / f"ppo_{env_tag}_final.pth")
 
     buffer = RolloutBuffer()
     runner = OnPolicyRunner(
@@ -167,16 +188,9 @@ def train_ppo(
     logger.info("Starting PPO training...")
     metrics = runner.train()
 
-    torch.save(
-        {
-            "actor": agent.actor.state_dict(),
-            "critic": agent.critic.state_dict(),
-        },
-        final_model_path,
-    )
+    torch.save(agent.get_checkpoint(), final_model_path)
     best_state_dict = torch.load(best_model_path, map_location=device, weights_only=False)
-    agent.actor.load_state_dict(best_state_dict["actor"])
-    agent.critic.load_state_dict(best_state_dict["critic"])
+    agent.load_checkpoint(best_state_dict)
     agent.actor.eval()
     agent.critic.eval()
 
@@ -190,7 +204,7 @@ def train_ppo(
 
 
 def main() -> None:
-    """Train selected algorithm on CartPole, save checkpoints, and run final inference."""
+    """Train selected algorithm on a Gymnasium env, save checkpoints, and run final inference."""
     args = parse_args()
 
     # Create app logger. DEBUG prints per-eval training progress from the runner.
@@ -198,7 +212,7 @@ def main() -> None:
     logger.setLevel(logging.DEBUG)
 
     # Build environment and create checkpoint directory.
-    env = gym.make("CartPole-v1")
+    env = gym.make(args.env_id)
     checkpoints_dir = Path("checkpoints")
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
     device = get_device()

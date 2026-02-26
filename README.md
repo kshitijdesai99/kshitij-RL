@@ -19,7 +19,9 @@ A modular reinforcement learning library scaffold with working DQN and PPO imple
    - `uv run python main.py --algo dqn`
 3. Run PPO example:
    - `uv run python main.py --algo ppo`
-4. Run tests:
+4. Run PPO on a continuous-control environment:
+   - `uv run python main.py --algo ppo --env-id Pendulum-v1`
+5. Run tests:
    - `uv run pytest`
 
 ## Implemented Algorithms

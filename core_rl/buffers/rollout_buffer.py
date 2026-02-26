@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import random
+from typing import Any
 
 import numpy as np
 
@@ -54,7 +55,7 @@ class RolloutBuffer(BaseBuffer):
     def clear(self) -> None:
         """Reset all stored rollout data."""
         self._states: list[np.ndarray] = []
-        self._actions: list[int] = []
+        self._actions: list[Any] = []
         self._rewards: list[float] = []
         self._dones: list[bool] = []
         self._log_probs: list[float] = []
@@ -65,15 +66,21 @@ class RolloutBuffer(BaseBuffer):
     def add(
         self,
         state: np.ndarray,
-        action: int,
+        action: Any,
         reward: float,
         done: bool,
         log_prob: float,
         value: float,
     ) -> None:
         """Store one environment step used by PPO."""
+        action_array = np.asarray(action)
+        if action_array.ndim == 0:
+            stored_action: Any = int(action_array.item())
+        else:
+            stored_action = action_array.astype(np.float32)
+
         self._states.append(np.asarray(state, dtype=np.float32))
-        self._actions.append(int(action))
+        self._actions.append(stored_action)
         self._rewards.append(float(reward))
         self._dones.append(bool(done))
         self._log_probs.append(float(log_prob))
@@ -120,9 +127,15 @@ class RolloutBuffer(BaseBuffer):
         if self._returns is None or self._advantages is None:
             raise ValueError("call compute_returns_and_advantages() before get_batch()")
 
+        first_action = self._actions[0]
+        if isinstance(first_action, int):
+            actions = np.asarray(self._actions, dtype=np.int64)
+        else:
+            actions = np.asarray(self._actions, dtype=np.float32)
+
         return RolloutBatch(
             states=np.asarray(self._states, dtype=np.float32),
-            actions=np.asarray(self._actions, dtype=np.int64),
+            actions=actions,
             rewards=np.asarray(self._rewards, dtype=np.float32),
             dones=np.asarray(self._dones, dtype=np.float32),
             log_probs=np.asarray(self._log_probs, dtype=np.float32),

@@ -117,13 +117,7 @@ class OnPolicyRunner:
                     best_eval_reward = avg_eval_reward
                     save_marker = " ✅ (New Best Eval)"
                     if self.best_model_path is not None:
-                        torch.save(
-                            {
-                                "actor": self.agent.actor.state_dict(),
-                                "critic": self.agent.critic.state_dict(),
-                            },
-                            self.best_model_path,
-                        )
+                        torch.save(self.agent.get_checkpoint(), self.best_model_path)
 
                 self.logger.debug(
                     "Update %s | Episode %s | Timesteps %s | Eval: %.1f | Policy Loss: %.4f | Value Loss: %.4f%s",
